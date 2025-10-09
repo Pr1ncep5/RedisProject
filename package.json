@@ -1,0 +1,23 @@
+{
+  "name": "redisproject",
+  "module": "index.ts",
+  "private": true,
+  "scripts": {
+    "dev": "bun --watch index.ts",
+    "build": "tsc",
+    "start": "bun run dist/index.js"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/redis": "^4.0.11"
+  },
+  "peerDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "hono": "^4.9.10",
+    "nanoid": "^5.1.6",
+    "redis": "^5.8.3",
+    "zod": "^4.1.12"
+  }
+}
