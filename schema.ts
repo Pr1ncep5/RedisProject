@@ -13,7 +13,7 @@ export const RestaurantDetailsSchema = z.object({
 
 export const ReviewSchema = z.object({
   review: z.string().min(1),
-  rating: z.string().min(1).max(5),
+  rating: z.number().min(1).max(5),
 });
 
 export type Restaurant = z.infer<typeof RestaurantSchema>;
