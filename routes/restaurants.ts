@@ -4,6 +4,9 @@ import { RestaurantSchema, ReviewSchema, type Review } from "../schema";
 import { initializeRedisClient } from "../utils/client";
 import { nanoid } from "nanoid";
 import {
+  cuisineKey,
+  cuisinesKey,
+  restaurantCuisinesKeyById,
   restaurantKeyById,
   reviewDetailsKeyById,
   reviewKeyById,
@@ -26,8 +29,16 @@ app.post("/", zValidator("json", RestaurantSchema), async (c) => {
     location: validated.location,
   };
 
-  const addResult = await client.hSet(restaurantKey, hashData);
-  console.log(`Added ${addResult} fields to Redis Key: ${restaurantKey}`);
+  await Promise.all([
+    ...validated.cuisines.map((cuisine) =>
+      Promise.all([
+        client.sAdd(cuisinesKey, cuisine),
+        client.sAdd(cuisineKey(cuisine), id),
+        client.sAdd(restaurantCuisinesKeyById(id), cuisine),
+      ])
+    ),
+    client.hSet(restaurantKey, hashData),
+  ]);
 
   const responseBody = createSuccessResponse(
     { id, key: restaurantKey },
