@@ -136,12 +136,16 @@ app.get("/:restaurantId", checkRestaurantExists, async (c) => {
 
   const restaurantKey = restaurantKeyById(restaurantId);
 
-  const [viewCount, restaurantData] = await Promise.all([
+  const [viewCount, restaurantData, cuisines] = await Promise.all([
     client.hIncrBy(restaurantKey, "viewCount", 1),
     client.hGetAll(restaurantKey),
+    client.sMembers(restaurantCuisinesKeyById(restaurantId)),
   ]);
 
-  const responseBody = createSuccessResponse(restaurantData);
+  const responseBody = createSuccessResponse({
+    ...restaurantData,
+    cuisines,
+  });
   return c.json(responseBody, 200);
 });
 
