@@ -22,6 +22,29 @@ import { checkRestaurantExists } from "../middlewares/checkRestaurantId";
 
 const app = new Hono();
 
+app.get("/", async (c) => {
+  const client = await initializeRedisClient();
+  const { page = 1, limit = 10 } = c.req.query();
+
+  const start = (Number(page) - 1) * Number(limit);
+  const end = start + Number(limit);
+
+  const restaurantIds = await client.zRange(
+    restaurantsByRatingKey,
+    start,
+    end,
+    {
+      REV: true,
+    }
+  );
+  const restaurants = await Promise.all(
+    restaurantIds.map((id) => client.hGetAll(restaurantKeyById(id)))
+  );
+
+  const responseBody = createSuccessResponse(restaurants);
+  return c.json(responseBody, 200);
+});
+
 app.post("/", zValidator("json", RestaurantSchema), async (c) => {
   const validated: Restaurant = c.req.valid("json");
   const client = await initializeRedisClient();
@@ -93,7 +116,7 @@ app.post(
       client.zAdd(restaurantsByRatingKey, {
         score: averageRating,
         value: restaurantId,
-      }), 
+      }),
       client.hSet(restaurantKey, "avgStars", averageRating),
     ]);
 
