@@ -1,6 +1,11 @@
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
-import { RestaurantSchema, ReviewSchema, type Review } from "../schema";
+import {
+  RestaurantSchema,
+  ReviewSchema,
+  type Restaurant,
+  type Review,
+} from "../schema";
 import { initializeRedisClient } from "../utils/client";
 import { nanoid } from "nanoid";
 import {
@@ -8,6 +13,7 @@ import {
   cuisinesKey,
   restaurantCuisinesKeyById,
   restaurantKeyById,
+  restaurantsByRatingKey,
   reviewDetailsKeyById,
   reviewKeyById,
 } from "../utils/keys";
@@ -17,7 +23,7 @@ import { checkRestaurantExists } from "../middlewares/checkRestaurantId";
 const app = new Hono();
 
 app.post("/", zValidator("json", RestaurantSchema), async (c) => {
-  const validated = c.req.valid("json");
+  const validated: Restaurant = c.req.valid("json");
   const client = await initializeRedisClient();
 
   const id = nanoid();
@@ -38,6 +44,10 @@ app.post("/", zValidator("json", RestaurantSchema), async (c) => {
       ])
     ),
     client.hSet(restaurantKey, hashData),
+    client.zAdd(restaurantsByRatingKey, {
+      score: 0,
+      value: id,
+    }),
   ]);
 
   const responseBody = createSuccessResponse(
@@ -60,6 +70,7 @@ app.post(
     const reviewId = nanoid();
     const reviewKey = reviewKeyById(restaurantId);
     const reviewDetailsKey = reviewDetailsKeyById(reviewId);
+    const restaurantKey = restaurantKeyById(restaurantId);
 
     const reviewData = {
       id: reviewId,
@@ -69,9 +80,21 @@ app.post(
       restaurantId,
     };
 
-    await Promise.all([
+    const [reviewCount, setResult, totalStarsString] = await Promise.all([
       client.lPush(reviewKey, reviewId),
       client.hSet(reviewDetailsKey, reviewData),
+      client.hIncrByFloat(restaurantKey, "totalStars", data.rating),
+    ]);
+
+    const numericTotalStars = parseFloat(totalStarsString);
+    const averageRating = Number((numericTotalStars / reviewCount).toFixed(1));
+
+    await Promise.all([
+      client.zAdd(restaurantsByRatingKey, {
+        score: averageRating,
+        value: restaurantId,
+      }), 
+      client.hSet(restaurantKey, "avgStars", averageRating),
     ]);
 
     const responseBody = createSuccessResponse(reviewData, "Review added");
