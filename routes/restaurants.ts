@@ -1,9 +1,11 @@
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import {
+  RestaurantDetailsSchema,
   RestaurantSchema,
   ReviewSchema,
   type Restaurant,
+  type RestaurantDetails,
   type Review,
 } from "../schema";
 import { initializeRedisClient } from "../utils/client";
@@ -12,6 +14,7 @@ import {
   cuisineKey,
   cuisinesKey,
   restaurantCuisinesKeyById,
+  restaurantDetailsKeyById,
   restaurantKeyById,
   restaurantsByRatingKey,
   reviewDetailsKeyById,
@@ -79,6 +82,40 @@ app.post("/", zValidator("json", RestaurantSchema), async (c) => {
     "New restaurant created and saved"
   );
 
+  return c.json(responseBody, 201);
+});
+
+app.post(
+  "/:restaurantId/details",
+  checkRestaurantExists,
+  zValidator("json", RestaurantDetailsSchema),
+  async (c) => {
+    const restaurantId = c.req.param("restaurantId");
+    const validatedData: RestaurantDetails = c.req.valid("json");
+    const client = await initializeRedisClient();
+
+    const restaurantDetailsKey = restaurantDetailsKeyById(restaurantId);
+    await client.json.set(restaurantDetailsKey, ".", validatedData);
+
+    const responseBody = createSuccessResponse(
+      validatedData,
+      "Restaurant details added"
+    );
+    return c.json(responseBody, 201);
+  }
+);
+
+app.get("/:restaurantId/details", checkRestaurantExists, async (c) => {
+  const restaurantId = c.req.param("restaurantId");
+  const client = await initializeRedisClient();
+
+  const restaurantDetailsKey = restaurantDetailsKeyById(restaurantId);
+  const details = await client.json.get(restaurantDetailsKey);
+
+  const responseBody = createSuccessResponse(
+    details,
+    "Restaurant details fetched"
+  );
   return c.json(responseBody, 201);
 });
 
