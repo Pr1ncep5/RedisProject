@@ -17,6 +17,7 @@ import {
   restaurantDetailsKeyById,
   restaurantKeyById,
   restaurantsByRatingKey,
+  restaurantsIndexKey,
   reviewDetailsKeyById,
   reviewKeyById,
   weatherKeyById,
@@ -83,6 +84,16 @@ app.post("/", zValidator("json", RestaurantSchema), async (c) => {
   );
 
   return c.json(responseBody, 201);
+});
+
+app.get("/search", async (c) => {
+  const { q } = c.req.query();
+  const client = await initializeRedisClient();
+
+  const results = await client.ft.search(restaurantsIndexKey, `@name:${q}`);
+
+  const responseBody = createSuccessResponse(results);
+  return c.json(responseBody, 200);
 });
 
 app.post(
