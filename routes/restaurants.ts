@@ -25,6 +25,7 @@ import {
 } from "../utils/keys";
 import { createErrorResponse, createSuccessResponse } from "../utils/responses";
 import { checkRestaurantExists } from "../middlewares/checkRestaurantId";
+import { checkReviewExists } from "../middlewares/checkReviewId";
 
 const app = new Hono();
 
@@ -239,6 +240,61 @@ app.get("/:restaurantId/reviews", checkRestaurantExists, async (c) => {
   const responseBody = createSuccessResponse(reviews, "Reviews fetched");
   return c.json(responseBody, 200);
 });
+
+app.put(
+  "/:restaurantId/reviews/:reviewId",
+  checkRestaurantExists,
+  checkReviewExists,
+  zValidator("json", ReviewSchema),
+  async (c) => {
+    const restaurantId = c.req.param("restaurantId");
+    const restaurantKey = restaurantKeyById(restaurantId);
+
+    const reviewId = c.req.param("reviewId");
+    const reviewDetailsKey = reviewDetailsKeyById(reviewId);
+
+    const client = await initializeRedisClient();
+    const newData: Review = c.req.valid("json");
+
+    const oldReviewData = await client.hGetAll(reviewDetailsKey);
+    const oldRating = parseFloat(oldReviewData.rating || "0");
+    const newRating = newData.rating;
+    const ratingDifference = newRating - oldRating;
+
+    const newTotalStarsString = await client.hIncrByFloat(
+      restaurantKey,
+      "totalStars",
+      ratingDifference
+    );
+
+    const reviewCount = await client.lLen(reviewKeyById(restaurantId));
+
+    const newTotalStars = parseFloat(newTotalStarsString);
+    const averageRating = Number((newTotalStars / reviewCount).toFixed(1));
+
+    const finalReviewData = {
+      ...oldReviewData,
+      review: newData.review,
+      rating: newData.rating,
+    };
+
+    await Promise.all([
+      client.hSet(reviewDetailsKey, finalReviewData),
+      client.hSet(restaurantKey, "avgStars", averageRating),
+      client.zAdd(restaurantsByRatingKey, {
+        score: averageRating,
+        value: restaurantId,
+      }),
+    ]);
+
+    return c.json(
+      createSuccessResponse(
+        finalReviewData,
+        "Review updated, total rating was recalculated"
+      )
+    );
+  }
+);
 
 app.delete(
   "/:restaurantId/reviews/:reviewId",
