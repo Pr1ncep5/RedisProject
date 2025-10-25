@@ -258,7 +258,7 @@ app.put(
       name: newData.name,
       location: newData.location,
     };
-    
+
     const hasLocationChanged = oldData.location !== newData.location;
 
     const restaurantCuisinesKey = restaurantCuisinesKeyById(restaurantId);
@@ -351,6 +351,28 @@ app.put(
         "Review updated, total rating was recalculated"
       )
     );
+  }
+);
+
+app.put(
+  "/:restaurantId/details",
+  checkRestaurantExists, 
+  zValidator("json", RestaurantDetailsSchema), 
+  async (c) => {
+    const restaurantId = c.req.param("restaurantId");
+    const validatedData: RestaurantDetails = c.req.valid("json");
+    const client = await initializeRedisClient();
+
+    const restaurantDetailsKey = restaurantDetailsKeyById(restaurantId);
+
+    await client.json.set(restaurantDetailsKey, ".", validatedData);
+
+    const responseBody = createSuccessResponse(
+      validatedData,
+      "Restaurant details updated"
+    );
+
+    return c.json(responseBody, 200);
   }
 );
 
