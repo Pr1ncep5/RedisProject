@@ -242,6 +242,64 @@ app.get("/:restaurantId/reviews", checkRestaurantExists, async (c) => {
 });
 
 app.put(
+  "/:restaurantId",
+  checkRestaurantExists,
+  zValidator("json", RestaurantSchema),
+  async (c) => {
+    const restaurantId = c.req.param("restaurantId");
+    const restaurantKey = restaurantKeyById(restaurantId);
+
+    const client = await initializeRedisClient();
+    const newData: Restaurant = c.req.valid("json");
+
+    const oldData = await client.hGetAll(restaurantKey);
+    const updatedHashData = {
+      ...oldData,
+      name: newData.name,
+      location: newData.location,
+    };
+    
+    const hasLocationChanged = oldData.location !== newData.location;
+
+    const restaurantCuisinesKey = restaurantCuisinesKeyById(restaurantId);
+    const oldCuisines = await client.sMembers(restaurantCuisinesKey);
+    const newCuisines = newData.cuisines;
+
+    const cuisinesToAdd = newCuisines.filter((c) => !oldCuisines.includes(c));
+    const cuisinesToRemove = oldCuisines.filter(
+      (c) => !newCuisines.includes(c)
+    );
+
+    const operations = [client.hSet(restaurantKey, updatedHashData)];
+
+    if (hasLocationChanged) {
+      console.log("Location has changed, invalidating the weather cache");
+      operations.push(client.del(weatherKeyById(restaurantId)));
+    }
+
+    for (const cuisine of cuisinesToAdd) {
+      operations.push(client.sAdd(cuisinesKey, cuisine));
+      operations.push(client.sAdd(cuisineKey(cuisine), restaurantId));
+      operations.push(client.sAdd(restaurantCuisinesKey, cuisine));
+    }
+
+    for (const cuisine of cuisinesToRemove) {
+      operations.push(client.sRem(cuisineKey(cuisine), restaurantId));
+      operations.push(client.sRem(restaurantCuisinesKey, cuisine));
+    }
+
+    await Promise.all(operations);
+
+    return c.json(
+      createSuccessResponse(
+        updatedHashData,
+        "Restaurant updated and cuisines were synchronized"
+      )
+    );
+  }
+);
+
+app.put(
   "/:restaurantId/reviews/:reviewId",
   checkRestaurantExists,
   checkReviewExists,
