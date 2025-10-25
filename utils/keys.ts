@@ -21,3 +21,5 @@ export const restaurantDetailsKeyById = (id: string) =>
   getKeyName("restaurant_details", id);
 
 export const restaurantsIndexKey = getKeyName("idx", "restaurants");
+
+export const restaurantsBloomKey = getKeyName("bloom_restaurants");

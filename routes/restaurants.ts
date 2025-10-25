@@ -16,6 +16,7 @@ import {
   restaurantCuisinesKeyById,
   restaurantDetailsKeyById,
   restaurantKeyById,
+  restaurantsBloomKey,
   restaurantsByRatingKey,
   restaurantsIndexKey,
   reviewDetailsKeyById,
@@ -51,20 +52,30 @@ app.get("/", async (c) => {
 });
 
 app.post("/", zValidator("json", RestaurantSchema), async (c) => {
-  const validated: Restaurant = c.req.valid("json");
+  const validatedData: Restaurant = c.req.valid("json");
   const client = await initializeRedisClient();
 
   const id = nanoid();
   const restaurantKey = restaurantKeyById(id);
 
+  const bloomString = `${validatedData.name}:${validatedData.location}`;
+  const hasSeenBefore = await client.bf.exists(
+    restaurantsBloomKey,
+    bloomString
+  );
+
+  if (hasSeenBefore) {
+    return c.json(createErrorResponse("This restaurant already exists"), 409);
+  }
+
   const hashData = {
     id: id,
-    name: validated.name,
-    location: validated.location,
+    name: validatedData.name,
+    location: validatedData.location,
   };
 
   await Promise.all([
-    ...validated.cuisines.map((cuisine) =>
+    ...validatedData.cuisines.map((cuisine) =>
       Promise.all([
         client.sAdd(cuisinesKey, cuisine),
         client.sAdd(cuisineKey(cuisine), id),
@@ -76,6 +87,7 @@ app.post("/", zValidator("json", RestaurantSchema), async (c) => {
       score: 0,
       value: id,
     }),
+    client.bf.add(restaurantsBloomKey, bloomString),
   ]);
 
   const responseBody = createSuccessResponse(
