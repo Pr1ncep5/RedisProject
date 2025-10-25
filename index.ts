@@ -1,7 +1,7 @@
 import { Hono } from "hono";
-import { createErrorResponse } from "./utils/responses";
-import restaurantsRouter from "./routes/restaurants";
-import cuisinesRouter from "./routes/cuisines";
+import { createErrorResponse } from "./src/utils/responses";
+import restaurantsRouter from "./src/routes/restaurants";
+import cuisinesRouter from "./src/routes/cuisines";
 
 const PORT = parseInt(process.env.PORT || "3000");
 

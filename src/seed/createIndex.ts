@@ -1,5 +1,5 @@
-import { initializeRedisClient } from "../utils/client";
-import { getKeyName, restaurantsIndexKey } from "../utils/keys";
+import { initializeRedisClient } from "../src/utils/client";
+import { getKeyName, restaurantsIndexKey } from "../src/utils/keys";
 import { SCHEMA_FIELD_TYPE } from "redis";
 
 async function createIndex() {
